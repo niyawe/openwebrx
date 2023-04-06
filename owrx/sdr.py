@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 class MappedSdrSources(PropertyDelegator):
     def __init__(self, pm: PropertyManager):
-        self.subscriptions = {}
         super().__init__(PropertyLayer())
         for key, value in pm.items():
             self._addSource(key, value)
@@ -34,17 +33,9 @@ class MappedSdrSources(PropertyDelegator):
 
     def _addSource(self, key, value):
         self.handleDeviceUpdate(key, value)
-        updateMethod = partial(self.handleDeviceUpdate, key, value)
-        self.subscriptions[key] = [
-            value.filter("type", "profiles").wire(updateMethod),
-            value["profiles"].wire(updateMethod)
-        ]
 
     def isDeviceValid(self, device):
-        return self._sdrTypeAvailable(device) and self._hasProfiles(device)
-
-    def _hasProfiles(self, device):
-        return "profiles" in device and device["profiles"] and len(device["profiles"]) > 0
+        return self._sdrTypeAvailable(device)
 
     def _sdrTypeAvailable(self, value):
         featureDetector = FeatureDetector()
@@ -72,9 +63,6 @@ class MappedSdrSources(PropertyDelegator):
 
     def _removeSource(self, key, source):
         source.shutdown()
-        for sub in self.subscriptions[key]:
-            sub.cancel()
-        del self.subscriptions[key]
 
     def __setitem__(self, key, value):
         source = self[key] if key in self else None
@@ -163,62 +151,20 @@ class AvailableProfiles(PropertyReadOnly):
                 self._addSource(key, value)
 
     def handleSdrNameChange(self, s_id, source, name):
-        profiles = source.getProfiles()
-        for p_id in list(self._layer.keys()):
-            source_id, profile_id = p_id.split("|")
-            if source_id == s_id:
-                profile = profiles[profile_id]
-                self._layer[p_id] = "{} {}".format(name, profile["name"])
-
-    def handleProfileChange(self, source_id, source: SdrSource, changes):
-        for key, value in changes.items():
-            if value is PropertyDeleted:
-                self._removeProfile(source_id, key)
-            else:
-                self._addProfile(source_id, source, key, value)
-
-    def handleProfileNameChange(self, s_id, source: SdrSource, p_id, name):
-        for concat_p_id in list(self._layer.keys()):
-            source_id, profile_id = concat_p_id.split("|")
-            if source_id == s_id and profile_id == p_id:
-                self._layer[concat_p_id] = "{} {}".format(source.getName(), name)
+        self._layer[s_id] = name
 
     def _addSource(self, key, source: SdrSource):
-        for p_id, p in source.getProfiles().items():
-            self._addProfile(key, source, p_id, p)
+        self._layer["{}".format(key)] = source.getName()
         self.subscriptions[key] = [
             source.getProps().wireProperty("name", partial(self.handleSdrNameChange, key, source)),
-            source.getProfiles().wire(partial(self.handleProfileChange, key, source)),
         ]
 
-    def _addProfile(self, s_id, source: SdrSource, p_id, profile):
-        self._layer["{}|{}".format(s_id, p_id)] = "{} {}".format(source.getName(), profile["name"])
-        if s_id not in self.profileSubscriptions:
-            self.profileSubscriptions[s_id] = {}
-        self.profileSubscriptions[s_id][p_id] = profile.wireProperty("name", partial(self.handleProfileNameChange, s_id, source, p_id))
-
     def _removeSource(self, key):
-        for profile_id in list(self._layer.keys()):
-            if profile_id.startswith("{}|".format(key)):
-                del self._layer[profile_id]
+        del self._layer[key]
         if key in self.subscriptions:
             while self.subscriptions[key]:
                 self.subscriptions[key].pop().cancel()
             del self.subscriptions[key]
-        if key in self.profileSubscriptions:
-            for p_id in self.profileSubscriptions[key].keys():
-                self.profileSubscriptions[key][p_id].cancel()
-            del self.profileSubscriptions[key]
-
-    def _removeProfile(self, s_id, p_id):
-        for concat_p_id in list(self._layer.keys()):
-            source_id, profile_id = concat_p_id.split("|")
-            if source_id == s_id and profile_id == p_id:
-                del self._layer[concat_p_id]
-        if s_id in self.profileSubscriptions and p_id in self.profileSubscriptions[s_id]:
-            self.profileSubscriptions[s_id][p_id].cancel()
-            del self.profileSubscriptions[s_id][p_id]
-
 
 class SdrService(object):
     sources = None

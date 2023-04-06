@@ -687,7 +687,7 @@ function zoom_calc() {
 var networkSpeedMeasurement;
 var currentprofile = {
     toString: function() {
-        return this['sdr_id'] + '|' + this['profile_id'];
+        return this['sdr_id'];
     }
 };
 
@@ -765,9 +765,8 @@ function on_ws_recv(evt) {
                             demodulatorPanel.setSquelchMargin(config['squelch_auto_margin']);
                         bookmarks.loadLocalBookmarks();
 
-                        if ('sdr_id' in config || 'profile_id' in config) {
+                        if ('sdr_id' in config) {
                             currentprofile['sdr_id'] = config['sdr_id'] || currentprofile['sdr_id'];
-                            currentprofile['profile_id'] = config['profile_id'] || currentprofile['profile_id'];
                             $('#openwebrx-sdr-profiles-listbox').val(currentprofile.toString());
 
                             waterfall_clear();

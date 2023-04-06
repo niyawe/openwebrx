@@ -330,6 +330,42 @@ input[type=range]:disabled {
     font-style: normal;
 }
 
+.webrx-center-freq {
+	width: 100%;
+	text-align: left;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: row;
+	cursor: pointer;
+}
+
+.webrx-center-freq > * {
+    flex: 1;
+}
+
+.webrx-center-freq .input-group {
+    display: flex;
+    flex-direction: row;
+}
+
+.webrx-center-freq .input-group > * {
+    flex: 0 0 auto;
+}
+
+.webrx-center-freq .input-group input {
+    flex: 1 0 auto;
+    margin-right: 0;
+    border-right: 1px solid #373737;
+    -moz-appearance: textfield;
+}
+
+.webrx-center-freq .input-group input::-webkit-outer-spin-button,
+.webrx-center-freq .input-group input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 .webrx-actual-freq {
 	width: 100%;
 	text-align: left;
@@ -382,6 +418,37 @@ input[type=range]:disabled {
 
 .input-group :last-child {
     padding-right: 5px
+}
+
+.webrx-center-freq .input-group input, .webrx-center-freq .input-group select {
+    outline: none;
+    font-size: 16pt;
+}
+
+.webrx-center-freq input {
+    font-family: 'roboto-mono';
+    width: 0;
+    box-sizing: border-box;
+    border: 0;
+    padding: 0;
+    background-color: inherit;
+    color: inherit;
+}
+
+.webrx-center-freq, .webrx-center-freq input {
+	font-size: 16pt;
+	font-family: 'roboto-mono';
+}
+
+.webrx-center-freq .digit {
+    cursor: ns-resize;
+}
+
+.webrx-center-freq .digit:hover {
+	color: #FFFF50;
+	border-radius: 5px;
+	background: -webkit-gradient( linear, left top, left bottom, color-stop(0.0 , #373737), color-stop(1, #4F4F4F) );
+	background: -moz-linear-gradient( center top, #373737 0%, #4F4F4F 100% );
 }
 
 .webrx-actual-freq .input-group input, .webrx-actual-freq .input-group select {

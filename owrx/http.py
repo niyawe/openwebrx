@@ -10,9 +10,7 @@ from owrx.controllers.settings.general import GeneralSettingsController
 from owrx.controllers.settings.sdr import (
     SdrDeviceListController,
     SdrDeviceController,
-    SdrProfileController,
     NewSdrDeviceController,
-    NewProfileController,
 )
 from owrx.controllers.settings.reporting import ReportingController
 from owrx.controllers.settings.backgrounddecoding import BackgroundDecodingController
@@ -113,25 +111,6 @@ class Router(object):
                 "^/settings/sdr/([^/]+)$", SdrDeviceController, method="POST", options={"action": "processFormData"}
             ),
             RegexRoute("^/settings/deletesdr/([^/]+)$", SdrDeviceController, options={"action": "deleteDevice"}),
-            RegexRoute("^/settings/sdr/([^/]+)/newprofile$", NewProfileController),
-            RegexRoute(
-                "^/settings/sdr/([^/]+)/newprofile$",
-                NewProfileController,
-                method="POST",
-                options={"action": "processFormData"},
-            ),
-            RegexRoute("^/settings/sdr/([^/]+)/profile/([^/]+)$", SdrProfileController),
-            RegexRoute(
-                "^/settings/sdr/([^/]+)/profile/([^/]+)$",
-                SdrProfileController,
-                method="POST",
-                options={"action": "processFormData"},
-            ),
-            RegexRoute(
-                "^/settings/sdr/([^/]+)/deleteprofile/([^/]+)$",
-                SdrProfileController,
-                options={"action": "deleteProfile"},
-            ),
             StaticRoute("/settings/bookmarks", BookmarksController),
             StaticRoute("/settings/bookmarks", BookmarksController, method="POST", options={"action": "new"}),
             RegexRoute("^/settings/bookmarks/(.+)$", BookmarksController, method="POST", options={"action": "update"}),

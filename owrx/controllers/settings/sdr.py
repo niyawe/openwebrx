@@ -43,19 +43,13 @@ class SdrDeviceListController(AuthorizationMixin, BreadcrumbMixin, WebpageContro
             state_info = "Unknown"
 
             if source is not None:
-                profiles = source.getProfiles()
-                currentProfile = profiles[source.getProfileId()]
                 clients = {c: len(source.getClients(c)) for c in SdrClientClass}
                 clients = {c: v for c, v in clients.items() if v}
                 connections = len([c for c in source.getClients() if isinstance(c, OpenWebRxReceiverClient)])
                 additional_info = """
-                    <div>{num_profiles} profile(s)</div>
-                    <div>Current profile: {current_profile}</div>
                     <div>Clients: {clients}</div>
                     <div>Connections: {connections}</div>
                 """.format(
-                    num_profiles=len(config["profiles"]),
-                    current_profile=currentProfile["name"],
                     clients=", ".join("{cls}: {count}".format(cls=c.name, count=v) for c, v in clients.items()),
                     connections=connections,
                 )
@@ -113,50 +107,6 @@ class SdrFormController(SettingsFormController, metaclass=ABCMeta):
 
     def getTitle(self):
         return self.device["name"]
-
-    def render_sections(self):
-        return """
-            {tabs}
-            <div class="tab-body">
-                {sections}
-            </div>
-        """.format(
-            tabs=self.render_tabs(),
-            sections=super().render_sections(),
-        )
-
-    def render_tabs(self):
-        return """
-            <ul class="nav nav-tabs">
-                <li class="nav-item">
-                    <a class="nav-link {device_active}" href="{device_link}">{device_name}</a>
-                </li>
-                {profile_tabs}
-                <li class="nav-item">
-                    <a href="{new_profile_link}" class="nav-link {new_profile_active}">New profile</a>
-                </li>
-            </ul>
-        """.format(
-            device_link="{}settings/sdr/{}".format(self.get_document_root(), quote(self.device_id)),
-            device_name=self.device["name"] if self.device["name"] else "[Unnamed device]",
-            device_active="active" if self.isDeviceActive() else "",
-            new_profile_active="active" if self.isNewProfileActive() else "",
-            new_profile_link="{}settings/sdr/{}/newprofile".format(self.get_document_root(), quote(self.device_id)),
-            profile_tabs="".join(
-                """
-                    <li class="nav-item">
-                        <a class="nav-link {profile_active}" href="{profile_link}">{profile_name}</a>
-                    </li>
-                """.format(
-                    profile_link="{}settings/sdr/{}/profile/{}".format(
-                        self.get_document_root(), quote(self.device_id), quote(profile_id)
-                    ),
-                    profile_name=profile["name"] if profile["name"] else "[Unnamed profile]",
-                    profile_active="active" if self.isProfileActive(profile_id) else "",
-                )
-                for profile_id, profile in self.device["profiles"].items()
-            ),
-        )
 
     def isDeviceActive(self) -> bool:
         return False
@@ -325,109 +275,3 @@ class NewSdrDeviceController(SettingsFormController):
     def getSuccessfulRedirect(self):
         return "{}settings/sdr/{}".format(self.get_document_root(), quote(self.device_id))
 
-
-class SdrProfileController(SdrFormControllerWithModal):
-    def __init__(self, handler, request, options):
-        super().__init__(handler, request, options)
-        self.profile_id, self.profile = self._get_profile()
-
-    def get_breadcrumb(self) -> Breadcrumb:
-        return (
-            SdrDeviceBreadcrumb()
-            .append(BreadcrumbItem(self.device["name"], "settings/sdr/{}".format(self.device_id)))
-            .append(
-                BreadcrumbItem(
-                    self.profile["name"], "settings/sdr/{}/profile/{}".format(self.device_id, self.profile_id)
-                )
-            )
-        )
-
-    def getData(self):
-        return self.profile
-
-    def _get_profile(self):
-        if self.device is None:
-            return None
-        profile_id = unquote(self.request.matches.group(2))
-        if profile_id not in self.device["profiles"]:
-            return None
-        return profile_id, self.device["profiles"][profile_id]
-
-    def isProfileActive(self, profile_id) -> bool:
-        return profile_id == self.profile_id
-
-    def getSections(self):
-        try:
-            description = SdrDeviceDescription.getByType(self.device["type"])
-            return [description.getProfileSection()]
-        except SdrDeviceDescriptionMissing:
-            # TODO provide a generic interface that allows to switch the type
-            return []
-
-    def indexAction(self):
-        if self.profile is None:
-            self.send_response("profile not found", code=404)
-            return
-        super().indexAction()
-
-    def processFormData(self):
-        if self.profile is None:
-            self.send_response("profile not found", code=404)
-            return
-        return super().processFormData()
-
-    def render_remove_button(self):
-        return """
-            <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal">Remove profile...</button>
-        """
-
-    def getModalObjectType(self):
-        return "profile"
-
-    def getModalConfirmUrl(self):
-        return "{}settings/sdr/{}/deleteprofile/{}".format(
-            self.get_document_root(), quote(self.device_id), quote(self.profile_id)
-        )
-
-    def deleteProfile(self):
-        if self.profile_id is None:
-            return self.send_response("profile not found", code=404)
-        config = Config.get()
-        del self.device["profiles"][self.profile_id]
-        config.store()
-        return self.send_redirect("{}settings/sdr/{}".format(self.get_document_root(), quote(self.device_id)))
-
-
-class NewProfileController(SdrProfileController):
-    def __init__(self, handler, request, options):
-        self.data_layer = PropertyLayer(name="")
-        super().__init__(handler, request, options)
-
-    def get_breadcrumb(self) -> Breadcrumb:
-        return (
-            SdrDeviceBreadcrumb()
-            .append(BreadcrumbItem(self.device["name"], "settings/sdr/{}".format(self.device_id)))
-            .append(BreadcrumbItem("New profile", "settings/sdr/{}/newprofile".format(self.device_id)))
-        )
-
-    def _get_profile(self):
-        return str(uuid4()), self.data_layer
-
-    def isNewProfileActive(self) -> bool:
-        return True
-
-    def store(self):
-        # a uuid should be unique, so i'm not sure if there's a point in this check
-        if self.profile_id in self.device["profiles"]:
-            raise ValueError("Profile {} already exists!".format(self.profile_id))
-        self.device["profiles"][self.profile_id] = self.data_layer
-        super().store()
-
-    def getSuccessfulRedirect(self):
-        return "{}settings/sdr/{}/profile/{}".format(
-            self.get_document_root(), quote(self.device_id), quote(self.profile_id)
-        )
-
-    def render_remove_button(self):
-        # new profile doesn't have a remove button
-        return ""

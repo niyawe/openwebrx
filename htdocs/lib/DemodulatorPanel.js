@@ -6,6 +6,17 @@ function DemodulatorPanel(el) {
     self.squelchMargin = 10;
     self.initialParams = {};
 
+    var centerEl = el.find('.webrx-center-freq')
+    this.centerTuneableFrequencyDisplay = centerEl.tuneableFrequencyDisplay();
+    centerEl.on('frequencychange', function(event, freq) {
+	    ws.send(JSON.stringify({
+		"type": "setcenterfreq",
+		"params": {
+			"center_freq": freq
+		}
+	    }));
+    });
+
     var displayEl = el.find('.webrx-actual-freq')
     this.tuneableFrequencyDisplay = displayEl.tuneableFrequencyDisplay();
     displayEl.on('frequencychange', function(event, freq) {
@@ -270,6 +281,7 @@ DemodulatorPanel.prototype.setCenterFrequency = function(center_freq) {
     this.centerFreqTimeout = setTimeout(function() {
         me.stopDemodulator();
         me.center_freq = center_freq;
+	me.centerTuneableFrequencyDisplay.setFrequency(center_freq);
         me.startDemodulator();
         me.centerFreqTimeout = false;
     }, 50);

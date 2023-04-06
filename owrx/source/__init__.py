@@ -74,39 +74,6 @@ class SdrSourceEventClient(object):
         return SdrClientClass.INACTIVE
 
 
-class SdrProfileCarousel(PropertyCarousel):
-    def __init__(self, props):
-        super().__init__()
-        if "profiles" not in props:
-            return
-
-        for profile_id, profile in props["profiles"].items():
-            self.addLayer(profile_id, profile)
-        # activate first available profile
-        self.switch()
-
-        props["profiles"].wire(self.handleProfileUpdate)
-
-    def addLayer(self, profile_id, profile):
-        profile_stack = PropertyStack()
-        profile_stack.addLayer(0, PropertyLayer(profile_id=profile_id).readonly())
-        profile_stack.addLayer(1, profile)
-        super().addLayer(profile_id, profile_stack)
-
-    def handleProfileUpdate(self, changes):
-        for profile_id, profile in changes.items():
-            if profile is PropertyDeleted:
-                self.removeLayer(profile_id)
-            else:
-                self.addLayer(profile_id, profile)
-
-    def _getDefaultLayer(self):
-        # return the first available profile, or the default empty layer if we don't have any
-        if self.layers:
-            return next(iter(self.layers.values()))
-        return super()._getDefaultLayer()
-
-
 class SdrSource(ABC):
     def __init__(self, id, props):
         self.id = id
@@ -116,11 +83,6 @@ class SdrSource(ABC):
         self.buffer = None
 
         self.props = PropertyStack()
-
-        # layer 0 reserved for profile properties
-        self.profileCarousel = SdrProfileCarousel(props)
-        # prevent profile names from overriding the device name
-        self.props.addLayer(0, PropertyFilter(self.profileCarousel, ByLambda(lambda x: x != "name")))
 
         # props from our device config
         self.props.addLayer(1, props)
@@ -150,8 +112,6 @@ class SdrSource(ABC):
         self.failed = False
         self.busyState = SdrBusyState.IDLE
 
-        self.validateProfiles()
-
         if self.isAlwaysOn() and self.isEnabled():
             self.start()
 
@@ -179,24 +139,6 @@ class SdrSource(ABC):
         for c in self.clients.copy():
             c.onFail()
 
-    def validateProfiles(self):
-        props = PropertyStack()
-        props.addLayer(1, self.props)
-        for id, p in self.props["profiles"].items():
-            props.replaceLayer(0, p)
-            if "center_freq" not in props:
-                logger.warning('Profile "%s" does not specify a center_freq', id)
-                continue
-            if "samp_rate" not in props:
-                logger.warning('Profile "%s" does not specify a samp_rate', id)
-                continue
-            if "start_freq" in props:
-                start_freq = props["start_freq"]
-                srh = props["samp_rate"] / 2
-                center_freq = props["center_freq"]
-                if start_freq < center_freq - srh or start_freq > center_freq + srh:
-                    logger.warning('start_freq for profile "%s" is out of range', id)
-
     def isAlwaysOn(self):
         return "always-on" in self.props and self.props["always-on"]
 
@@ -223,13 +165,6 @@ class SdrSource(ABC):
 
     def getCommand(self):
         return [self.getCommandMapper().map(self.getCommandValues())]
-
-    def activateProfile(self, profile_id):
-        logger.debug("activating profile {0} for {1}".format(profile_id, self.getId()))
-        try:
-            self.profileCarousel.switch(profile_id)
-        except KeyError:
-            logger.warning("invalid profile %s for sdr %s. ignoring", profile_id, self.getId())
 
     def getId(self):
         return self.id
@@ -531,12 +466,6 @@ class SdrDeviceDescription(object):
             i for i in self.getInputs() if i.id in keys
         ]
 
-    def getProfileInputs(self) -> List[Input]:
-        keys = self.getProfileMandatoryKeys() + self.getProfileOptionalKeys()
-        return [TextInput("name", "Profile name", validator=RequiredValidator())] + [
-            i for i in self.getInputs() if i.id in keys
-        ]
-
     def getInputs(self) -> List[Input]:
         return [
             CheckboxInput("enabled", "Enable this device", converter=OptionalConverter(defaultFormValue=True)),
@@ -576,7 +505,12 @@ class SdrDeviceDescription(object):
         return True
 
     def getDeviceMandatoryKeys(self):
-        return ["name", "enabled"]
+        return [
+                "name",
+                "enabled",
+                "center_freq",
+                "samp_rate",
+                ]
 
     def getDeviceOptionalKeys(self):
         keys = [
@@ -591,21 +525,7 @@ class SdrDeviceDescription(object):
             keys += ["ppm"]
         return keys
 
-    def getProfileMandatoryKeys(self):
-        return ["name", "center_freq", "samp_rate", "start_freq", "start_mod"]
-
-    def getProfileOptionalKeys(self):
-        return ["initial_squelch_level", "rf_gain", "lfo_offset", "waterfall_levels"]
-
     def getDeviceSection(self):
         return OptionalSection(
             "Device settings", self.getDeviceInputs(), self.getDeviceMandatoryKeys(), self.getDeviceOptionalKeys()
-        )
-
-    def getProfileSection(self):
-        return OptionalSection(
-            "Profile settings",
-            self.getProfileInputs(),
-            self.getProfileMandatoryKeys(),
-            self.getProfileOptionalKeys(),
         )

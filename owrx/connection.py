@@ -289,14 +289,15 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
                         self.setSdr(message["params"]["sdr"])
                 elif message["type"] == "selectprofile":
                     if "params" in message and "profile" in message["params"]:
-                        profile = message["params"]["profile"].split("|")
-                        self.setSdr(profile[0])
-                        self.sdr.activateProfile(profile[1])
+                        self.setSdr(profile)
                 elif message["type"] == "connectionproperties":
                     if "params" in message:
                         self.connectionProperties = message["params"]
                         if self.dsp:
                             self.getDsp().setProperties(self.connectionProperties)
+                elif message["type"] == "setcenterfreq":
+                    if "params" in message and "center_freq" in message["params"]:
+                        self.sdr.props["center_freq"] = message["params"]["center_freq"]
 
             else:
                 logger.warning("received message without type: {0}".format(message))
